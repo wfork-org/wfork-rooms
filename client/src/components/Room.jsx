@@ -18,6 +18,16 @@ const Room = () => {
     const userVideoRef = useRef();
     const peersRef = useRef([]); // Array of { peerId, peer, stream }
     const screenTrackRef = useRef(null);
+    const userStreamRef = useRef();
+
+    useEffect(() => {
+        userStreamRef.current = userStream;
+        return () => {
+            if (userStreamRef.current) {
+                userStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [userStream]);
 
     useEffect(() => {
         const socketUrl = import.meta.env.PROD ? '/' : 'http://localhost:5000';
@@ -74,8 +84,9 @@ const Room = () => {
                 socketRef.current.on('user-left', id => {
                     const peerObj = peersRef.current.find(p => p.peerID === id);
                     if (peerObj) {
-                        peerObj.peer.destroy();
+                        peerObj.peer.close();
                     }
+
                     peersRef.current = peersRef.current.filter(p => p.peerID !== id);
                     setPeers(users => users.filter(p => p.peerID !== id));
                 });
@@ -87,26 +98,9 @@ const Room = () => {
 
         return () => {
             socketRef.current.disconnect();
-            peersRef.current.forEach(p => p.peer.destroy());
-            // We can't easily clean up userStream tracks here because of closure, 
-            // but the browser handles it on page unload/navigation usually.
-            // To be safe, we could use a ref for the stream.
+            peersRef.current.forEach(p => p.peer.close());
         };
     }, [roomId]);
-
-    // Use a ref to access the current stream in cleanup if needed, 
-    // but for now we'll rely on the fact that component unmount usually stops tracks if we navigate away.
-    // Actually, let's fix the stream cleanup properly.
-    const userStreamRef = useRef();
-    useEffect(() => {
-        userStreamRef.current = userStream;
-        return () => {
-            if (userStreamRef.current) {
-                userStreamRef.current.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [userStream]);
-
 
     function createPeer(userToSignal, callerID, stream) {
         const peer = new RTCPeerConnection({
@@ -279,6 +273,17 @@ const Room = () => {
     };
 
     const leaveRoom = () => {
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+        }
+        // Stop all tracks
+        if (userStream) {
+            userStream.getTracks().forEach(track => track.stop());
+        }
+        if (screenTrackRef.current) {
+            screenTrackRef.current.stop();
+        }
+
         navigate('/');
         window.location.reload();
     };

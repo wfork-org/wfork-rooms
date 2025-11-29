@@ -50,18 +50,30 @@ io.on('connection', (socket) => {
         io.to(payload.to).emit('signal', { from: socket.id, signal: payload.signal });
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        // Remove user from rooms
-        for (const roomId in rooms) {
-            rooms[roomId] = rooms[roomId].filter(id => id !== socket.id);
-            if (rooms[roomId].length === 0) {
-                delete rooms[roomId];
-            } else {
-                // Notify others in the room
-                io.to(roomId).emit('user-left', socket.id);
+    socket.on('disconnecting', () => {
+        console.log(`User disconnecting: ${socket.id}`);
+
+        // 1. Notify rooms from socket.rooms (Socket.IO internal tracking)
+        for (const room of socket.rooms) {
+            if (room !== socket.id) {
+                console.log(`Emitting user-left to room ${room} (via socket.rooms)`);
+                io.to(room).emit('user-left', socket.id);
             }
         }
+
+        // 2. Clean up manual 'rooms' object
+        for (const roomId in rooms) {
+            if (rooms[roomId].includes(socket.id)) {
+                rooms[roomId] = rooms[roomId].filter(id => id !== socket.id);
+                if (rooms[roomId].length === 0) {
+                    delete rooms[roomId];
+                }
+            }
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
     });
 });
 
