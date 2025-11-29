@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  client:
+    container_name: rooms-client
+    build: ./client
+    ports:
+      - "8082:80"
+    depends_on:
+      - server
+    restart: always
+    networks:
+      - pc2-net
+
+  server:
+    container_name: rooms-server
+    build: ./server
+    ports:
+      - "5000:5000"
+    restart: always
+    networks:
+      - pc2-net
+
+networks:
+  pc2-net:
+    external: true
+    name: pc2-net
